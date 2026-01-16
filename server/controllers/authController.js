@@ -3,13 +3,7 @@ import jwt from "jsonwebtoken";
 import userModel from "../model/usermodel.js";
 import transporter from "../config/nodemailer.js";
 import { EMAIL_VERIFICATION_TEMPLATE } from "../config/emailTemplates.js";
-
-const {
-  generateAccessToken,
-  generateRefreshToken,
-} = require("../utils/tokens");
-
-const riskEngine = require("../services/riskEngine.service");
+import { analyzeLoginRisk } from "../riskengin/riskEngine.service.js";
 
 // Helper functions for token generation
 const generateAccessToken = (userId) =>
@@ -115,17 +109,61 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid password" });
     }
 
-    // Check if 2FA is enabled
-    if (user.twoFactorEnabled) {
+    // ============================================================
+    // 🛡️ AUTHBUILDER SENTINEL INTEGRATION (START)
+    // ============================================================
+
+    // 1. Capture Context Data
+    let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    if (Array.isArray(ip)) ip = ip[0];
+    const userAgent = req.headers["user-agent"] || "Unknown";
+
+    console.log("[Login] Analyzing risk for IP:", ip);
+
+    // 2. Ask Spring Boot Risk Engine for Analysis
+    const riskResult = await analyzeLoginRisk(user._id, ip, userAgent);
+    console.log(`[Risk] Analysis for ${email}:`, riskResult);
+
+    // 3. Handle BLOCK Status (High Risk)
+    if (riskResult.status === "BLOCK") {
+      return res.status(403).json({
+        success: false,
+        message: "Login blocked due to suspicious activity.",
+        reason: riskResult.reason || "High risk detected",
+      });
+    }
+
+    // 4. Determine if 2FA is required (Adaptive Auth)
+    // Require 2FA if USER enabled it OR if RISK ENGINE demands it
+    const isRiskChallenge = riskResult.status === "CHALLENGE";
+    const shouldChallenge = user.twoFactorEnabled || isRiskChallenge;
+
+    if (shouldChallenge) {
+      // Edge Case: Risk demands 2FA but user hasn't set it up yet
+      if (isRiskChallenge && !user.twoFactorEnabled) {
+        // If risky and no 2FA setup, block for security
+        if (!user.twoFactorSecret) {
+          return res.status(403).json({
+            success: false,
+            message:
+              "Suspicious login detected. Please enable 2FA first or contact support.",
+          });
+        }
+      }
+
       return res.status(200).json({
         success: true,
         requires2FA: true,
-        message: "Please enter your 2FA code",
+        reason: isRiskChallenge ? "Unusual activity detected" : "2FA Enabled",
+        message: isRiskChallenge
+          ? "Unusual activity detected. Please verify your identity."
+          : "Please enter your 2FA code",
         email: user.email,
       });
     }
+
     // ============================================================
-    // END OF INTEGRATION
+    // 🛡️ AUTHBUILDER SENTINEL INTEGRATION (END)
     // ============================================================
 
     // Generate tokens (Only if NO Risk and NO 2FA)

@@ -48,12 +48,16 @@ const Login = () => {
 
         if (data.success) {
           
-          // Check for 2FA requirement
+          // Check for 2FA requirement (including risk-based challenges)
           if (data.requires2FA) {
-            toast.info(data.message || 'Verification required'); 
+            const message = data.reason === "Unusual activity detected" 
+              ? "⚠️ " + data.message 
+              : data.message || 'Verification required';
+            toast.info(message); 
             navigate('/2fa-verify', {
               state: {
-                email: email
+                email: email,
+                isRiskChallenge: data.reason === "Unusual activity detected"
               }
             });
           } else {
@@ -67,7 +71,12 @@ const Login = () => {
         }
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Something went wrong');
+      // Handle risk-based blocking
+      if (error.response && error.response.status === 403) {
+        toast.error("🛡️ Security Alert: " + error.response.data.message);
+      } else {
+        toast.error(error.response?.data?.message || 'Something went wrong');
+      }
     }
   }
 
