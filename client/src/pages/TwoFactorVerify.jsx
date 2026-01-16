@@ -15,14 +15,13 @@ const TwoFactorVerify = () => {
   const [backupCode, setBackupCode] = useState('');
 
   const email = location.state?.email;
-  const tempToken = location.state?.tempToken;
 
   useEffect(() => {
-    if (!email || !tempToken) {
+    if (!email) {
       toast.error('Invalid access. Please login again.');
       navigate('/login');
     }
-  }, [email, tempToken, navigate]);
+  }, [email, navigate]);
 
   const handleCodeChange = (index, value) => {
     if (value.length > 1) return;

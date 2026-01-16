@@ -48,15 +48,16 @@ const Login = () => {
 
         if (data.success) {
           
-          // 🛡️ CHECK FOR 2FA (Including Risk-Based Challenges)
+          // Check for 2FA requirement (including risk-based challenges)
           if (data.requires2FA) {
-            // Use the message from backend so user knows IF it was due to risk
-            toast.info(data.message || 'Verification required'); 
-            
+            const message = data.reason === "Unusual activity detected" 
+              ? "⚠️ " + data.message 
+              : data.message || 'Verification required';
+            toast.info(message); 
             navigate('/2fa-verify', {
               state: {
                 email: email,
-                isRiskChallenge: true // Optional: Let the next page know this was forced
+                isRiskChallenge: data.reason === "Unusual activity detected"
               }
             });
           } else {
@@ -70,12 +71,10 @@ const Login = () => {
         }
       }
     } catch (error) {
-      // 🛑 HANDLE BLOCKING SPECIFICALLY
+      // Handle risk-based blocking
       if (error.response && error.response.status === 403) {
-        // This comes from our Spring Boot "BLOCK" rule
-        toast.error("⛔ Security Alert: " + error.response.data.message);
-      } 
-      else {
+        toast.error("🛡️ Security Alert: " + error.response.data.message);
+      } else {
         toast.error(error.response?.data?.message || 'Something went wrong');
       }
     }

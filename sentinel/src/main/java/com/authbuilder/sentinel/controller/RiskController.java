@@ -21,7 +21,7 @@ public class RiskController {
         System.out.println("IP: " + request.getIpAddress());
 
         // Mock Logic: If IP is "1.1.1.1", consider it DANGEROUS.
-        if (!"1.1.1.1".equals(request.getIpAddress())) {
+        if ("1.1.1.1".equals(request.getIpAddress())) {
             return new RiskAnalysisResponse("BLOCK", 90, "Blacklisted IP detected");
         }
         // Mock Logic: If no Device ID, consider it SUSPICIOUS.
@@ -29,7 +29,7 @@ public class RiskController {
             return new RiskAnalysisResponse("CHALLENGE", 50, "Unknown Device");
         }
 
-        // Default: SAFE
+        // Default: SAFE - Normal logins are allowed
         return new RiskAnalysisResponse("ALLOW", 0, "Safe Login");
     }
 
