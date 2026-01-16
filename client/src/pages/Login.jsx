@@ -30,41 +30,54 @@ const Login = () => {
   const onSubmitHandler = async (e) => {
     try {
       e.preventDefault();
-
       axios.defaults.withCredentials = true;
 
-      if(state === 'Sign Up') {
-        const {data} = await axios.post(backendUrl + '/api/auth/register', {name, email, password});
-        
-        if(data.success) {
-          setIsLoggedIn(true)
-          getUserData()
-          navigate('/')
-        }else {
+      if (state === 'Sign Up') {
+        const { data } = await axios.post(backendUrl + '/api/auth/register', { name, email, password });
+
+        if (data.success) {
+          setIsLoggedIn(true);
+          getUserData();
+          navigate('/');
+        } else {
           toast.error(data.message);
         }
-      }else {
-        const {data} = await axios.post(backendUrl + '/api/auth/login', {email, password});
-        if(data.success) {
-          if(data.requires2FA) {
-            toast.info('Please enter your 2FA code');
-            navigate('/2fa-verify', { 
-              state: { 
+      } else {
+        // LOGIN FLOW
+        const { data } = await axios.post(backendUrl + '/api/auth/login', { email, password });
+
+        if (data.success) {
+          
+          // 🛡️ CHECK FOR 2FA (Including Risk-Based Challenges)
+          if (data.requires2FA) {
+            // Use the message from backend so user knows IF it was due to risk
+            toast.info(data.message || 'Verification required'); 
+            
+            navigate('/2fa-verify', {
+              state: {
                 email: email,
-                tempToken: data.tempToken 
-              } 
+                isRiskChallenge: true // Optional: Let the next page know this was forced
+              }
             });
           } else {
-            setIsLoggedIn(true)
-            getUserData()
-            navigate('/')
+            // Normal Login
+            setIsLoggedIn(true);
+            getUserData();
+            navigate('/');
           }
-        }else {
+        } else {
           toast.error(data.message);
         }
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Something went wrong');
+      // 🛑 HANDLE BLOCKING SPECIFICALLY
+      if (error.response && error.response.status === 403) {
+        // This comes from our Spring Boot "BLOCK" rule
+        toast.error("⛔ Security Alert: " + error.response.data.message);
+      } 
+      else {
+        toast.error(error.response?.data?.message || 'Something went wrong');
+      }
     }
   }
 
