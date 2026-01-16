@@ -4,9 +4,12 @@ import userModel from "../model/usermodel.js";
 import transporter from "../config/nodemailer.js";
 import { EMAIL_VERIFICATION_TEMPLATE } from "../config/emailTemplates.js";
 
-const { generateAccessToken, generateRefreshToken } = require('../utils/tokens');
+const {
+  generateAccessToken,
+  generateRefreshToken,
+} = require("../utils/tokens");
 
-const riskEngine = require('../services/riskEngine.service');
+const riskEngine = require("../services/riskEngine.service");
 
 // Helper functions for token generation
 const generateAccessToken = (userId) =>
@@ -112,39 +115,12 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid password" });
     }
 
-    // ============================================================
-    // 🛡️ AUTHBUILDER SENTINEL INTEGRATION (NEW PART)
-    // ============================================================
-    
-    // 1. Capture IP Address
-    let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    if (Array.isArray(ip)) ip = ip[0];
-    const userAgent = req.headers['user-agent'] || 'Unknown';
-
-    // 2. Ask Spring Boot: "Is this safe?"
-    const riskResult = await riskEngine.analyzeLoginRisk(user._id, ip, userAgent);
-    console.log(`[Risk] Analysis for ${email}:`, riskResult);
-
-    // 3. BLOCK if Spring Boot says "BLOCK"
-    if (riskResult.status === 'BLOCK') {
-      return res.status(403).json({
-        success: false,
-        message: "Login blocked due to suspicious activity.",
-        reason: riskResult.reason
-      });
-    }
-
-    // 4. Determine if 2FA is needed
-    // Trigger if User enabled it OR if Risk Engine demands it
-    const isRiskChallenge = riskResult.status === 'CHALLENGE';
-    const shouldChallenge = user.twoFactorEnabled || isRiskChallenge;
-
-    if (shouldChallenge) {
+    // Check if 2FA is enabled
+    if (user.twoFactorEnabled) {
       return res.status(200).json({
         success: true,
         requires2FA: true,
-        // Tell the user why (Standard 2FA or Suspicious Activity)
-        message: isRiskChallenge ? "Unusual activity detected. Verify identity." : "Please enter your 2FA code",
+        message: "Please enter your 2FA code",
         email: user.email,
       });
     }
@@ -173,8 +149,9 @@ export const login = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    return res.status(200).json({ success: true, requires2FA: false, message: "Login successful" });
-    
+    return res
+      .status(200)
+      .json({ success: true, requires2FA: false, message: "Login successful" });
   } catch (error) {
     console.error("Login Error:", error);
     return res.status(500).json({ success: false, message: "Server error" });

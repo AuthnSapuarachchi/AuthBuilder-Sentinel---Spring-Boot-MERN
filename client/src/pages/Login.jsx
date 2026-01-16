@@ -48,15 +48,12 @@ const Login = () => {
 
         if (data.success) {
           
-          // 🛡️ CHECK FOR 2FA (Including Risk-Based Challenges)
+          // Check for 2FA requirement
           if (data.requires2FA) {
-            // Use the message from backend so user knows IF it was due to risk
             toast.info(data.message || 'Verification required'); 
-            
             navigate('/2fa-verify', {
               state: {
-                email: email,
-                isRiskChallenge: true // Optional: Let the next page know this was forced
+                email: email
               }
             });
           } else {
@@ -70,14 +67,7 @@ const Login = () => {
         }
       }
     } catch (error) {
-      // 🛑 HANDLE BLOCKING SPECIFICALLY
-      if (error.response && error.response.status === 403) {
-        // This comes from our Spring Boot "BLOCK" rule
-        toast.error("⛔ Security Alert: " + error.response.data.message);
-      } 
-      else {
-        toast.error(error.response?.data?.message || 'Something went wrong');
-      }
+      toast.error(error.response?.data?.message || 'Something went wrong');
     }
   }
 
